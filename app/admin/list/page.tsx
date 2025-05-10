@@ -4,49 +4,57 @@ import jsPDF from 'jspdf';
 import { registerFont } from '../../../utils/NotoSansSC.js';
 import { useRouter } from 'next/navigation';
 
-type RegisterItem = {
+interface RegisterForm {
   firstName: string;
   lastName: string;
-  firstNameFurigana: string;
-  lastNameFurigana: string;
+  firstNameKana: string;
+  lastNameKana: string;
   firstNameRomaji: string;
   lastNameRomaji: string;
-  lang: string;
-  gender?: string;
-  birth?: string;
-  age?: string;
-  nationality?: string;
+  birth: string;
+  nationality: string;
   nationalityOther?: string;
-  visa?: string;
-  visaOther?: string;
-  visaDate?: string;
-  jobs?: string[];
-  exp?: string;
-  expYear?: string;
-  expMonth?: string;
-  zip?: string;
-  address?: string;
-  detailAddress?: string;
+  phone: string;
+  email: string;
+  postalCode: string;
+  address: string;
+  addressDetail: string;
   selectedChome?: string;
-  phone?: string;
-  healthDate?: string;
-  bpHigh?: string;
+  emergencyContact: string;
+  emergencyContactKana?: string;
+  emergencyPhone: string;
+  emergencyAddress: string;
+  emergencyAddressDetail: string;
+  emergencySelectedChome?: string;
+  jobType: string;
+  jobs?: string[];
+  visaType: string;
+  visaOther?: string;
+  visaExpiry: string;
+  insuranceType: string;
+  insuranceExpiry: string;
+  healthCheckDate: string;
+  bloodPressure: string;
   bpLow?: string;
   blood?: string;
-  emgName?: string;
-  emgFurigana?: string;
-  emgPhone?: string;
-  emgAddress?: string;
-  emgSame?: boolean;
-  insuranceDate?: string;
+  height: string;
+  weight: string;
+  photos: string[];
+  gender?: string;
+  age?: string;
   relationship?: string;
   relationshipOther?: string;
+  expYear?: string;
+  expMonth?: string;
+  exp?: string;
+  visaDate?: string;
+  insuranceDate?: string;
+  healthDate?: string;
   emgZip?: string;
+  emgAddress?: string;
   emgDetailAddress?: string;
   emgSelectedChome?: string;
-  uploadFiles?: Record<string, string>;
-  extraFiles?: Record<string, string>;
-};
+}
 
 export default function AdminList() {
   const router = useRouter();
@@ -64,13 +72,15 @@ export default function AdminList() {
       setIsAdmin00111(adminId === '00111');
     }
   }, []);
-  const [list, setList] = useNextState<RegisterItem[]>([]);
+  const [list, setList] = useNextState<RegisterForm[]>([]);
   const [selected, setSelected] = useNextState<number[]>([]);
-  const [editModal, setEditModal] = useNextState<{ show: boolean; item: RegisterItem | null; idx: number | null }>({ show: false, item: null, idx: null });
-  const [viewModal, setViewModal] = useNextState<{ show: boolean; item: RegisterItem | null }>({ show: false, item: null });
+  const [editModal, setEditModal] = useNextState<{ show: boolean; item: RegisterForm | null; idx: number | null }>({ show: false, item: null, idx: null });
+  const [viewModal, setViewModal] = useNextState<{ show: boolean; item: RegisterForm | null }>({ show: false, item: null });
   const [dateErrors, setDateErrors] = useNextState<{visaDate?: string, insuranceDate?: string, healthDate?: string}>({});
   const [customFields, setCustomFields] = useNextState<string[]>([]);
   const [showFieldSelector, setShowFieldSelector] = useNextState(false);
+  const [showDetail, setShowDetail] = useNextState(false);
+  const [selectedItem, setSelectedItem] = useNextState<RegisterForm | null>(null);
 
   useNextEffect(() => {
     const data = JSON.parse(localStorage.getItem('registerList') || '[]');
@@ -86,6 +96,8 @@ export default function AdminList() {
 
   // 批量删除
   const handleBatchDelete = () => {
+    if (selected.length === 0) return;
+    if (!confirm('選択した項目を削除しますか？')) return;
     const newList = list.filter((_, i) => !selected.includes(i));
     setList(newList);
     localStorage.setItem('registerList', JSON.stringify(newList));
@@ -98,8 +110,9 @@ export default function AdminList() {
   };
 
   // 查看详情
-  const handleView = (item: RegisterItem) => {
-    setViewModal({ show: true, item });
+  const handleView = (item: RegisterForm) => {
+    setSelectedItem(item);
+    setShowDetail(true);
   };
 
   // 日期校验函数
@@ -177,6 +190,7 @@ export default function AdminList() {
   const handleSelect = (idx: number) => {
     setSelected(sel => sel.includes(idx) ? sel.filter(i => i !== idx) : [...sel, idx]);
   };
+
   const handleSelectAll = () => {
     if (selected.length === list.length) setSelected([]);
     else setSelected(list.map((_, i) => i));
@@ -184,6 +198,8 @@ export default function AdminList() {
 
   // 批量导出 PDF
   const handleBatchExportPDF = () => {
+    if (selected.length === 0) return;
+    const items = list.filter((_, i) => selected.includes(i));
     try {
       const doc = new jsPDF({
         unit: 'pt',
@@ -195,7 +211,6 @@ export default function AdminList() {
       // 注册字体
       try { registerFont(doc); } catch (e) { doc.setFont('helvetica'); }
 
-      const items = list.filter((_, i) => selected.includes(i));
       const margin = 40;
       const pageWidth = 595.28; // A4 宽度（pt）
       const maxWidth = pageWidth - (margin * 2);
@@ -216,9 +231,9 @@ export default function AdminList() {
         
         const fields = [
           { label: '氏名', value: (item.firstName || '') + ' ' + (item.lastName || '') },
-          { label: 'ふりがな', value: (item.firstNameFurigana || '') + ' ' + (item.lastNameFurigana || '') },
+          { label: 'ふりがな', value: (item.firstNameKana || '') + ' ' + (item.lastNameKana || '') },
           { label: 'ローマ字', value: (item.firstNameRomaji || '') + ' ' + (item.lastNameRomaji || '') },
-          { label: '職種', value: item.jobs && item.jobs.length > 0 ? item.jobs.join(', ') : '' },
+          { label: '職種', value: item.jobType },
         ];
 
         fields.forEach(f => {
@@ -287,13 +302,13 @@ export default function AdminList() {
 
   // 可选字段
   const optionalFields = [
-    { key: 'jobs', label: '職種' },
+    { key: 'jobType', label: '職種' },
     { key: 'nationality', label: '国籍' },
     { key: 'phone', label: '電話' },
     { key: 'address', label: '住所' },
-    { key: 'blood', label: '血液型' },
-    { key: 'expYear', label: '経験年数(年)' },
-    { key: 'expMonth', label: '経験年数(月)' },
+    { key: 'bloodPressure', label: '血圧' },
+    { key: 'height', label: '身長' },
+    { key: 'weight', label: '体重' },
     // ...可扩展
   ];
 
@@ -353,7 +368,7 @@ export default function AdminList() {
                 {/* 复选框列 */}
                 {!isAdmin00111 && (
                   <th className="border px-2 py-2">
-                    <input type="checkbox" checked={selected.length === list.length && list.length > 0} onChange={handleSelectAll} />
+                    <input type="checkbox" checked={selected.length > 0} onChange={handleSelectAll} />
                   </th>
                 )}
                 <th className="border px-4 py-2">氏名</th>
@@ -381,14 +396,12 @@ export default function AdminList() {
                       </td>
                     )}
                     <td className="border px-4 py-2 cursor-pointer hover:underline" onClick={() => handleView(item)}>{item.firstName} {item.lastName}</td>
-                    <td className="border px-4 py-2">{item.firstNameFurigana} {item.lastNameFurigana}</td>
+                    <td className="border px-4 py-2">{item.firstNameKana} {item.lastNameKana}</td>
                     <td className="border px-4 py-2">{item.firstNameRomaji} {item.lastNameRomaji}</td>
                     <td className="border px-4 py-2">{item.birth || ''}</td>
                     {optionalFields.filter(f => customFields.includes(f.key)).map(f => (
                       <td key={f.key} className="border px-4 py-2">{
-                        f.key === 'jobs' ? (item.jobs && item.jobs.length > 0 ? item.jobs.join(', ') : '') :
-                        f.key === 'expYear' ? (item.expYear || '') :
-                        f.key === 'expMonth' ? (item.expMonth || '') :
+                        f.key === 'jobType' ? item.jobType :
                         (item as any)[f.key] || ''
                       }</td>
                     ))}
@@ -433,9 +446,9 @@ export default function AdminList() {
                               try { registerFont(doc); } catch (e) { doc.setFont('helvetica'); }
                               doc.setFontSize(12);
                               doc.text(`${'氏名'}: ${item.firstName} ${item.lastName}`, 10, 20);
-                              doc.text(`${'ふりがな'}: ${item.firstNameFurigana} ${item.lastNameFurigana}`, 10, 30);
+                              doc.text(`${'ふりがな'}: ${item.firstNameKana} ${item.lastNameKana}`, 10, 30);
                               doc.text(`${'ローマ字'}: ${item.firstNameRomaji} ${item.lastNameRomaji}`, 10, 40);
-                              doc.text(`${'職種'}: ${item.jobs && item.jobs.length > 0 ? item.jobs.join(', ') : ''}`, 10, 50);
+                              doc.text(`${'職種'}: ${item.jobType}`, 10, 50);
                               doc.save(`${item.firstName}${item.lastName}.pdf`);
                             }}
                             aria-label="导出PDF"
@@ -467,11 +480,11 @@ export default function AdminList() {
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-24">姓(ふりがな)</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.firstNameFurigana || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, firstNameFurigana: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.firstNameKana || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, firstNameKana: e.target.value } })} />
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-24">名(ふりがな)</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.lastNameFurigana || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, lastNameFurigana: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.lastNameKana || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, lastNameKana: e.target.value } })} />
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-24">姓(ローマ字)</label>
@@ -526,8 +539,8 @@ export default function AdminList() {
                       <label className="w-24">在留資格</label>
                       <select 
                         className="border rounded px-3 py-2 flex-1"
-                        value={editModal.item?.visa || ''}
-                        onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, visa: e.target.value } })}
+                        value={editModal.item?.visaType || ''}
+                        onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, visaType: e.target.value } })}
                       >
                         <option value="">選択してください</option>
                         {visaOptions.map(option => (
@@ -537,7 +550,7 @@ export default function AdminList() {
                         ))}
                       </select>
                     </div>
-                    {editModal.item?.visa === "其他" && (
+                    {editModal.item?.visaType === "其他" && (
                       <div className="flex gap-2 items-center">
                         <label className="w-24">その他の在留資格</label>
                         <input 
@@ -552,12 +565,12 @@ export default function AdminList() {
                 )}
                 <div className="flex gap-2 items-center">
                   <label className="w-24">在留カード期限</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.visaDate || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, visaDate: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.visaExpiry || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, visaExpiry: e.target.value } })} />
                 </div>
                 {dateErrors.visaDate && <div className="text-red-500 text-xs ml-24">{dateErrors.visaDate}</div>}
                 <div className="flex gap-2 items-center">
                   <label className="w-24">労災保険満了日</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.insuranceDate || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, insuranceDate: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.insuranceExpiry || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, insuranceExpiry: e.target.value } })} />
                 </div>
                 {dateErrors.insuranceDate && <div className="text-red-500 text-xs ml-24">{dateErrors.insuranceDate}</div>}
                 {/* 工作信息 */}
@@ -595,11 +608,11 @@ export default function AdminList() {
                   <label className="w-24">郵便番号</label>
                   <input 
                     className="border rounded px-3 py-2 flex-1"
-                    value={editModal.item?.zip || ''}
+                    value={editModal.item?.postalCode || ''}
                     onChange={e => {
                       let v = e.target.value.replace(/[^0-9]/g, "");
                       if (v.length > 3) v = v.slice(0, 3) + "-" + v.slice(3, 7);
-                      setEditModal({ ...editModal, item: { ...editModal.item!, zip: v.slice(0, 8) } });
+                      setEditModal({ ...editModal, item: { ...editModal.item!, postalCode: v.slice(0, 8) } });
                     }}
                     maxLength={8}
                     placeholder="郵便番号を入力（例：1234567）"
@@ -611,7 +624,7 @@ export default function AdminList() {
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-24">詳細住所</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.detailAddress || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, detailAddress: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.addressDetail || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, addressDetail: e.target.value } })} />
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-24">電話番号</label>
@@ -620,12 +633,12 @@ export default function AdminList() {
                 {/* 健康信息 */}
                 <div className="flex gap-2 items-center">
                   <label className="w-24">健康診断日</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.healthDate || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, healthDate: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.healthCheckDate || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, healthCheckDate: e.target.value } })} />
                 </div>
                 {dateErrors.healthDate && <div className="text-red-500 text-xs ml-24">{dateErrors.healthDate}</div>}
                 <div className="flex gap-2 items-center">
                   <label className="w-24">血圧(高)</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.bpHigh || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, bpHigh: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.bloodPressure || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, bloodPressure: e.target.value } })} />
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-24">血圧(低)</label>
@@ -638,11 +651,11 @@ export default function AdminList() {
                 {/* 紧急联系人信息 */}
                 <div className="flex gap-2 items-center">
                   <label className="w-32">緊急連絡先氏名</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.emgName || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, emgName: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.emergencyContact || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, emergencyContact: e.target.value } })} />
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-32">緊急連絡先ふりがな</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.emgFurigana || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, emgFurigana: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.emergencyContactKana || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, emergencyContactKana: e.target.value } })} />
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-32">関係</label>
@@ -682,7 +695,7 @@ export default function AdminList() {
                 )}
                 <div className="flex gap-2 items-center">
                   <label className="w-32">緊急連絡先電話番号</label>
-                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.emgPhone || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, emgPhone: e.target.value } })} />
+                  <input className="border rounded px-3 py-2 flex-1" value={editModal.item?.emergencyPhone || ''} onChange={e => setEditModal({ ...editModal, item: { ...editModal.item!, emergencyPhone: e.target.value } })} />
                 </div>
                 <div className="flex gap-2 items-center">
                   <label className="w-32">郵便番号</label>
@@ -706,10 +719,10 @@ export default function AdminList() {
                             ...editModal,
                             item: {
                               ...editModal.item,
-                              emgZip: editModal.item.zip || '',
+                              emgZip: editModal.item.postalCode || '',
                               emgAddress: editModal.item.address || '',
                               emgSelectedChome: editModal.item.selectedChome || '',
-                              emgDetailAddress: editModal.item.detailAddress || ''
+                              emgDetailAddress: editModal.item.addressDetail || ''
                             }
                           });
                         }
@@ -742,7 +755,7 @@ export default function AdminList() {
               <div className="flex flex-col gap-2 text-sm overflow-y-auto" style={{ maxHeight: '60vh' }}>
                 {/* 基本信息 */}
                 <div><strong>氏名:</strong> {viewModal.item.firstName} {viewModal.item.lastName}</div>
-                <div><strong>ふりがな:</strong> {viewModal.item.firstNameFurigana} {viewModal.item.lastNameFurigana}</div>
+                <div><strong>ふりがな:</strong> {viewModal.item.firstNameKana} {viewModal.item.lastNameKana}</div>
                 <div><strong>ローマ字:</strong> {viewModal.item.firstNameRomaji} {viewModal.item.lastNameRomaji}</div>
                 <div><strong>性別:</strong> {viewModal.item.gender}</div>
                 <div><strong>生年月日:</strong> {viewModal.item.birth}</div>
@@ -750,46 +763,36 @@ export default function AdminList() {
                 {/* 国籍与签证 */}
                 <div><strong>国籍:</strong> {viewModal.item.nationality}</div>
                 {viewModal.item.nationalityOther && <div><strong>その他の国籍:</strong> {viewModal.item.nationalityOther}</div>}
-                <div><strong>在留資格:</strong> {viewModal.item.visa}</div>
+                <div><strong>在留資格:</strong> {viewModal.item.visaType}</div>
                 {viewModal.item.visaOther && <div><strong>その他の在留資格:</strong> {viewModal.item.visaOther}</div>}
-                <div><strong>在留カード期限:</strong> {viewModal.item.visaDate}</div>
-                <div><strong>労災保険満了日:</strong> {viewModal.item.insuranceDate}</div>
+                <div><strong>在留カード期限:</strong> {viewModal.item.visaExpiry}</div>
+                <div><strong>労災保険満了日:</strong> {viewModal.item.insuranceExpiry}</div>
                 {/* 工作信息 */}
-                <div><strong>職種:</strong> {viewModal.item.jobs && viewModal.item.jobs.length > 0 ? viewModal.item.jobs.join(', ') : ''}</div>
+                <div><strong>職種:</strong> {viewModal.item.jobType}</div>
                 <div><strong>経験年数:</strong> {viewModal.item.expYear || ''}{(viewModal.item.expYear || viewModal.item.expMonth) ? '年' : ''}{viewModal.item.expMonth ? `${viewModal.item.expMonth}月` : ''}</div>
                 {/* 住址信息 */}
-                <div><strong>郵便番号:</strong> {viewModal.item.zip}</div>
-                <div><strong>住所:</strong> {[viewModal.item.address, viewModal.item.selectedChome, viewModal.item.detailAddress].filter(Boolean).join(' ')}</div>
+                <div><strong>郵便番号:</strong> {viewModal.item.postalCode}</div>
+                <div><strong>住所:</strong> {[viewModal.item.address, viewModal.item.selectedChome, viewModal.item.addressDetail].filter(Boolean).join(' ')}</div>
                 <div><strong>電話番号:</strong> {viewModal.item.phone}</div>
                 {/* 健康信息 */}
-                <div><strong>健康診断日:</strong> {viewModal.item.healthDate}</div>
-                <div><strong>血圧(高):</strong> {viewModal.item.bpHigh}</div>
+                <div><strong>健康診断日:</strong> {viewModal.item.healthCheckDate}</div>
+                <div><strong>血圧(高):</strong> {viewModal.item.bloodPressure}</div>
                 <div><strong>血圧(低):</strong> {viewModal.item.bpLow}</div>
                 <div><strong>血液型:</strong> {viewModal.item.blood}</div>
                 {/* 紧急联系人信息 */}
-                <div><strong>氏名:</strong> {viewModal.item.emgName}</div>
-                <div><strong>ふりがな:</strong> {viewModal.item.emgFurigana}</div>
+                <div><strong>氏名:</strong> {viewModal.item.emergencyContact}</div>
+                <div><strong>ふりがな:</strong> {viewModal.item.emergencyContactKana}</div>
                 <div><strong>関係:</strong> {viewModal.item.relationship}{viewModal.item.relationshipOther ? `（${viewModal.item.relationshipOther}）` : ''}</div>
-                <div><strong>電話番号:</strong> {viewModal.item.emgPhone}</div>
+                <div><strong>電話番号:</strong> {viewModal.item.emergencyPhone}</div>
                 <div><strong>郵便番号:</strong> {viewModal.item.emgZip}</div>
                 <div><strong>住所:</strong> {[viewModal.item.emgAddress, viewModal.item.emgSelectedChome, viewModal.item.emgDetailAddress].filter(Boolean).join(' ')}</div>
                 {/* 上传照片信息 */}
-                {viewModal.item.uploadFiles && (
+                {viewModal.item.photos && (
                   <div>
                     <strong>証明書写真:</strong>
                     <ul className="ml-2 list-disc">
-                      {Object.entries(viewModal.item.uploadFiles).map(([k, v]) => v && (
-                        <li key={k}>{k}: {v}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {viewModal.item.extraFiles && (
-                  <div>
-                    <strong>追加書類:</strong>
-                    <ul className="ml-2 list-disc">
-                      {Object.entries(viewModal.item.extraFiles).map(([k, v]) => v && (
-                        <li key={k}>{k}: {v}</li>
+                      {viewModal.item.photos.map((img: string, idx: number) => (
+                        <li key={idx}>{img}</li>
                       ))}
                     </ul>
                   </div>
@@ -831,29 +834,29 @@ export default function AdminList() {
                       // 准备字段数据
                       const fields = [
                         { label: '氏名', value: (item.firstName || '') + ' ' + (item.lastName || '') },
-                        { label: 'ふりがな', value: (item.firstNameFurigana || '') + ' ' + (item.lastNameFurigana || '') },
+                        { label: 'ふりがな', value: (item.firstNameKana || '') + ' ' + (item.lastNameKana || '') },
                         { label: 'ローマ字', value: (item.firstNameRomaji || '') + ' ' + (item.lastNameRomaji || '') },
                         { label: '性別', value: item.gender },
                         { label: '生年月日', value: item.birth },
                         { label: '年齢', value: item.age },
                         { label: '国籍', value: item.nationality },
                         { label: 'その他の国籍', value: item.nationalityOther },
-                        { label: '在留資格', value: item.visa },
+                        { label: '在留資格', value: item.visaType },
                         { label: 'その他の在留資格', value: item.visaOther },
-                        { label: '在留カード期限', value: item.visaDate },
-                        { label: '労災保険満了日', value: item.insuranceDate },
-                        { label: '職種', value: item.jobs && item.jobs.length > 0 ? item.jobs.join(', ') : '' },
+                        { label: '在留カード期限', value: item.visaExpiry },
+                        { label: '労災保険満了日', value: item.insuranceExpiry },
+                        { label: '職種', value: item.jobType },
                         { label: '経験', value: item.exp },
-                        { label: '郵便番号', value: item.zip },
-                        { label: '住所', value: [item.address, item.detailAddress, item.selectedChome].filter(Boolean).join(' ') },
+                        { label: '郵便番号', value: item.postalCode },
+                        { label: '住所', value: [item.address, item.addressDetail, item.selectedChome].filter(Boolean).join(' ') },
                         { label: '電話番号', value: item.phone },
-                        { label: '健康診断日', value: item.healthDate },
-                        { label: '血圧(高)', value: item.bpHigh },
+                        { label: '健康診断日', value: item.healthCheckDate },
+                        { label: '血圧(高)', value: item.bloodPressure },
                         { label: '血圧(低)', value: item.bpLow },
                         { label: '血液型', value: item.blood },
-                        { label: '緊急連絡先氏名', value: item.emgName },
-                        { label: '緊急連絡先ふりがな', value: item.emgFurigana },
-                        { label: '緊急連絡先電話番号', value: item.emgPhone },
+                        { label: '緊急連絡先氏名', value: item.emergencyContact },
+                        { label: '緊急連絡先ふりがな', value: item.emergencyContactKana },
+                        { label: '緊急連絡先電話番号', value: item.emergencyPhone },
                         { label: '緊急連絡先住所', value: [item.emgAddress, item.emgDetailAddress, item.emgSelectedChome].filter(Boolean).join(' ') },
                       ];
 
@@ -894,6 +897,98 @@ export default function AdminList() {
                 >
                   閉じる
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* 详情弹窗 */}
+        {showDetail && selectedItem && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-neutral-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-lg">
+              <h3 className="text-lg font-bold mb-4">登録情報詳細</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  {/* 基本信息 */}
+                  <div className="mb-2">氏名：{selectedItem.firstName} {selectedItem.lastName}</div>
+                  <div className="mb-2">フリガナ：{selectedItem.firstNameKana} {selectedItem.lastNameKana}</div>
+                  <div className="mb-2">ローマ字：{selectedItem.firstNameRomaji} {selectedItem.lastNameRomaji}</div>
+                  <div className="mb-2">性別：{selectedItem.gender}</div>
+                  <div className="mb-2">生年月日：{selectedItem.birth}</div>
+                  <div className="mb-2">年齢：{selectedItem.age}歳</div>
+
+                  {/* 国籍信息 */}
+                  <div className="mb-2">国籍：{selectedItem.nationality}{selectedItem.nationality === '其他' && selectedItem.nationalityOther ? `（${selectedItem.nationalityOther}）` : ''}</div>
+                  {selectedItem.nationality !== '日本' && (
+                    <>
+                      <div className="mb-2">在留資格：{selectedItem.visaType}{selectedItem.visaType === '其他' && selectedItem.visaOther ? `（${selectedItem.visaOther}）` : ''}</div>
+                      <div className="mb-2">在留カード期限：{selectedItem.visaDate}</div>
+                    </>
+                  )}
+
+                  {/* 工作信息 */}
+                  <div className="mb-2">職種：{selectedItem.jobType}</div>
+                  <div className="mb-2">経験年数：{selectedItem.expYear}年{selectedItem.expMonth}月</div>
+                  <div className="mb-2">労災保険満了日：{selectedItem.insuranceDate}</div>
+
+                  {/* 联系信息 */}
+                  <div className="mb-2">郵便番号：{selectedItem.postalCode}</div>
+                  <div className="mb-2">住所：{selectedItem.address}</div>
+                  <div className="mb-2">電話番号：{selectedItem.phone}</div>
+
+                  {/* 健康信息 */}
+                  <div className="mb-2">健康診断日：{selectedItem.healthDate}</div>
+                  <div className="mb-2">血圧：{selectedItem.bloodPressure}{selectedItem.bloodPressure && selectedItem.bpLow ? '/' : ''}{selectedItem.bpLow}</div>
+                  <div className="mb-2">血液型：{selectedItem.blood}</div>
+
+                  {/* 紧急联系人信息 */}
+                  <div className="mb-2">緊急連絡先氏名：{selectedItem.emergencyContact}</div>
+                  <div className="mb-2">緊急連絡先ふりがな：{selectedItem.emergencyContactKana}</div>
+                  <div className="mb-2">本人との関係：{selectedItem.relationship}{selectedItem.relationship === '其他' && selectedItem.relationshipOther ? `（${selectedItem.relationshipOther}）` : ''}</div>
+                  <div className="mb-2">緊急連絡先電話番号：{selectedItem.emergencyPhone}</div>
+                  <div className="mb-2">緊急連絡先郵便番号：{selectedItem.emgZip}</div>
+                  <div className="mb-2">緊急連絡先住所：{selectedItem.emergencyAddress}</div>
+                </div>
+                {/* 照片展示区域 */}
+                <div className="border-l pl-4">
+                  <div className="space-y-4">
+                    {selectedItem.photos && selectedItem.photos.length > 0 && (
+                      <div>
+                        <span className="font-medium block mb-2">アップロード写真：</span>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedItem.photos.map((img: string, idx: number) => (
+                            <img 
+                              key={idx} 
+                              src={img} 
+                              alt={`Photo ${idx + 1}`} 
+                              className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {Object.entries(selectedItem).map(([key, value]) => {
+                      if (typeof value === 'string' && value.startsWith('data:image/')) {
+                        return (
+                          <div key={key}>
+                            <span className="font-medium block mb-2">{key}：</span>
+                            <img 
+                              src={value} 
+                              alt={key} 
+                              className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                            />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  className="px-4 py-2 rounded font-medium transition-all transform hover:-translate-y-0.5 active:translate-y-0.5 bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-lg hover:shadow-xl border border-blue-600 hover:border-blue-500"
+                  onClick={() => setShowDetail(false)}
+                >閉じる</button>
               </div>
             </div>
           </div>

@@ -25,7 +25,6 @@ interface RegisterForm {
   expMonth: string;
   zip: string;
   address: string;
-  detailAddress: string;
   selectedChome: string;
   phone: string;
   healthDate: string;
@@ -38,7 +37,6 @@ interface RegisterForm {
   emgAddress: string;
   emgSame: boolean;
   insuranceDate: string;
-  emgDetailAddress: string;
   emgSelectedChome: string;
   relationship: string;
   relationshipOther: string;
@@ -155,7 +153,6 @@ export default function Register() {
     expMonth: "",
     zip: "",
     address: "",
-    detailAddress: "",
     selectedChome: "",
     phone: "",
     healthDate: "",
@@ -168,7 +165,6 @@ export default function Register() {
     emgAddress: "",
     emgSame: false,
     insuranceDate: "",
-    emgDetailAddress: "",
     emgSelectedChome: "",
     relationship: "",
     relationshipOther: "",
@@ -178,6 +174,12 @@ export default function Register() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [registerSuccess, setRegisterSuccess] = useState(false);
   const router = useRouter();
+
+  // Add missing date input state variables
+  const [birthRaw, setBirthRaw] = useState('');
+  const [visaDateRaw, setVisaDateRaw] = useState('');
+  const [insuranceDateRaw, setInsuranceDateRaw] = useState('');
+  const [healthDateRaw, setHealthDateRaw] = useState('');
 
   // 地址自动填充
   const [zipError, setZipError] = useState('');
@@ -303,13 +305,19 @@ export default function Register() {
   ), [form, updateForm]);
 
   // 水印标注
-  const watermarkLabel = (text: string) => (
-    <div className="relative">
-      <span className="absolute -top-2 left-2 px-1 text-xs text-gray-500 bg-white dark:bg-neutral-800">
-        {text}
-      </span>
-    </div>
-  );
+  const watermarkLabel = (text: string) => {
+    // 如果是日期输入框，不显示水印
+    if (text.includes('例：')) {
+      return null;
+    }
+    return (
+      <div className="relative">
+        <span className="absolute -top-2 left-2 px-1 text-xs text-gray-500 bg-white dark:bg-neutral-800">
+          {text}
+        </span>
+      </div>
+    );
+  };
 
   // 日期验证函数
   const validateDate = useCallback((date: string, field: string) => {
@@ -394,6 +402,20 @@ export default function Register() {
     const healthDateError = validateDate(form.healthDate, 'healthDate');
     if (healthDateError) errors.healthDate = healthDateError;
 
+    // 血压验证
+    const s = parseInt(form.bpHigh, 10);
+    const d = parseInt(form.bpLow, 10);
+    if (!form.bpHigh || !form.bpLow || isNaN(s) || isNaN(d)) {
+      errors.bpHigh = lang === 'zh' ? '请填写血压' : '血圧を入力してください';
+    } else if (s < 100 || s > 139 || d < 60 || d > 89) {
+      errors.bpHigh = lang === 'zh' ? '请输入正确数值' : '正しい数値を入力してください';
+    } else {
+      const bpStatus = getBloodPressureStatus(form.bpHigh, form.bpLow, lang);
+      if (bpStatus !== (lang === 'zh' ? '正常' : '正常')) {
+        errors.bpHigh = lang === 'zh' ? '血压必须为正常范围（高压<120且低压<80）' : '血圧は正常範囲（収縮期<120かつ拡張期<80）である必要があります';
+      }
+    }
+
     // 其他验证...
     if (!form.phone) errors.phone = lang === 'zh' ? '请输入电话号码' : '電話番号を入力してください';
     if (!form.emgName) errors.emgName = lang === 'zh' ? '请输入紧急联系人姓名' : '緊急連絡先氏名を入力してください';
@@ -407,19 +429,45 @@ export default function Register() {
   // 提交
   const handleSubmit = useCallback((e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    // 检查是否已存在相同姓名和生日的资料
+    const list = JSON.parse(localStorage.getItem('registerList') || '[]');
+    const isDuplicate = list.some((item: any) => item.firstName === form.firstName && item.lastName === form.lastName && item.birth === form.birth);
+    if (isDuplicate) {
+      setFormErrors(errors => ({ ...errors, firstName: lang === 'zh' ? '此资料已被提交过' : 'この情報は既に登録されています' }));
+      setTimeout(() => {
+        const el = document.querySelector('[name="firstName"]') as HTMLElement;
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus();
+        }
+      }, 0);
+      return;
+    }
     if (validateForm()) {
       setShowConfirmModal(true);
+    } else {
+      // 自动滚动到第一个有错误的输入框
+      setTimeout(() => {
+        const firstErrorKey = Object.keys(formErrors)[0];
+        if (firstErrorKey) {
+          const el = document.querySelector(`[name="${firstErrorKey}"]`) as HTMLElement;
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.focus();
+          }
+        }
+      }, 0);
     }
-  }, [validateForm]);
+  }, [validateForm, formErrors, form, lang]);
 
   // 确认提交
   const handleConfirmSubmit = useCallback(() => {
     // 保存到 localStorage
     localStorage.setItem('registerList', JSON.stringify([{ ...form, lang }]));
     setShowConfirmModal(false);
-    setRegisterSuccess(true);
-    // 跳转到上传页面
+    // 先跳转页面，不立即 setRegisterSuccess
     router.push("/register/upload");
+    // setRegisterSuccess(true); // 不再提前设置
   }, [form, lang, router]);
 
   // 工种"其他"逻辑
@@ -431,10 +479,9 @@ export default function Register() {
       updateForm('emgZip', form.zip);
       setEmgAutoAddress(autoAddress);
       updateForm('emgAddress', autoAddress);
-      updateForm('emgDetailAddress', form.detailAddress);
       updateForm('emgPhone', form.phone);
     }
-  }, [form.emgSame, form.zip, autoAddress, form.detailAddress, form.phone, updateForm]);
+  }, [form.emgSame, form.zip, autoAddress, form.phone, updateForm]);
 
   // ふりがな/罗马字/电话/邮编/日期输入处理
   const handleInput = useCallback((field: keyof RegisterForm, value: string) => {
@@ -448,7 +495,7 @@ export default function Register() {
       updateForm(field, formatJPZip(value));
     } else if (field === 'emgZip') {
       updateForm(field, formatJPZip(value));
-    } else {
+              } else {
       updateForm(field, value);
     }
   }, [updateForm]);
@@ -460,13 +507,8 @@ export default function Register() {
   const s = parseInt(form.bpHigh, 10);
   const d = parseInt(form.bpLow, 10);
   if (form.bpHigh || form.bpLow) {
-    if (
-      !form.bpHigh || !form.bpLow ||
-      isNaN(s) || isNaN(d) ||
-      s < 80 || s > 250 ||
-      d < 40 || d > 150
-    ) {
-      bpError = lang === 'zh' ? '请输入合理的血压值（高压80~250，低压40~150）' : '正しい血圧値を入力してください（収縮期80~250、拡張期40~150）';
+    if (!form.bpHigh || !form.bpLow || isNaN(s) || isNaN(d)) {
+      bpError = lang === 'zh' ? '请填写血压' : '血圧を入力してください';
     } else {
       bpStatus = getBloodPressureStatus(form.bpHigh, form.bpLow, lang);
       if (bpStatus.includes('正常')) {
@@ -497,7 +539,7 @@ export default function Register() {
   const jobOptions = ["LGS", "PB", "造作", lang === "zh" ? "其他" : "その他"];
 
   // 健康诊断日区间
-  const today = new Date();
+    const today = new Date();
   const healthMin = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate() + 1);
   const healthMinStr = `${healthMin.getFullYear()}/${String(healthMin.getMonth() + 1).padStart(2, '0')}/${String(healthMin.getDate()).padStart(2, '0')}`;
   const healthMaxStr = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
@@ -528,16 +570,19 @@ export default function Register() {
 
   // 测试数据填充
   const fillTestData = () => {
-    // 动态日期
+    // 清除之前的测试数据
+    localStorage.removeItem('registerList');
+    // 新的动态日期
     const today = new Date();
-    // 出生日期：18岁生日
-    const birthDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+    // 出生日期：25岁生日
+    const birthDate = new Date(today.getFullYear() - 25, today.getMonth(), today.getDate());
     const birthStr = `${birthDate.getFullYear()}${String(birthDate.getMonth() + 1).padStart(2, '0')}${String(birthDate.getDate()).padStart(2, '0')}`;
-    // 在留卡期限：今天+1年
-    const visaDateObj = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate());
+    // 在留卡期限：今天+2年
+    const visaDateObj = new Date(today.getFullYear() + 2, today.getMonth(), today.getDate());
     const visaDateStr = `${visaDateObj.getFullYear()}${String(visaDateObj.getMonth() + 1).padStart(2, '0')}${String(visaDateObj.getDate()).padStart(2, '0')}`;
-    // 健康诊断日：今天
-    const healthDateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+    // 健康诊断日：今天-3个月
+    const healthDateObj = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate());
+    const healthDateStr = `${healthDateObj.getFullYear()}${String(healthDateObj.getMonth() + 1).padStart(2, '0')}${String(healthDateObj.getDate()).padStart(2, '0')}`;
     // 劳灾保险到期区间
     let insuranceDateStr = '';
     if (today.getMonth() + 1 > 3 || (today.getMonth() + 1 === 3 && today.getDate() > 31)) {
@@ -546,44 +591,42 @@ export default function Register() {
       insuranceDateStr = `${today.getFullYear()}0331`;
     }
     setForm({
-      firstName: '张',
-      lastName: '三',
-      firstNameFurigana: 'チョウ',
-      lastNameFurigana: 'サン',
-      firstNameRomaji: 'ZHANG',
-      lastNameRomaji: 'SAN',
-      gender: '男',
+      firstName: '王',
+      lastName: '五',
+      firstNameFurigana: 'ワン',
+      lastNameFurigana: 'ウー',
+      firstNameRomaji: 'WANG',
+      lastNameRomaji: 'WU',
+      gender: '女',
       birth: birthStr,
-      age: '18',
-      nationality: '中国',
+      age: '', // 不直接设置年龄
+      nationality: '日本',
       nationalityOther: '',
-      visa: '技术・人文知识・国际业务',
+      visa: '',
       visaOther: '',
-      visaDate: visaDateStr,
-      jobs: ['LGS'],
+      visaDate: '',
+      jobs: ['PB'],
       exp: '',
-      expYear: '5',
-      expMonth: '6',
-      zip: '232-0033',
-      address: '東京都新宿区',
-      detailAddress: 'テストビル101',
+      expYear: '3',
+      expMonth: '2',
+      zip: '150-0001',
+      address: '東京都渋谷区',
       selectedChome: '',
-      phone: '090-1234-1234',
+      phone: '080-5678-5678',
       healthDate: healthDateStr,
-      bpHigh: '120',
-      bpLow: '80',
-      blood: 'A',
-      emgName: '李四',
-      emgFurigana: 'リシ',
-      emgPhone: '090-1234-1234',
-      emgAddress: '東京都新宿区',
+      bpHigh: '110',
+      bpLow: '70',
+      blood: 'B',
+      emgName: '赵六',
+      emgFurigana: 'チョウロク',
+      emgPhone: '080-5678-5678',
+      emgAddress: '東京都渋谷区',
       emgSame: false,
       insuranceDate: insuranceDateStr,
-      emgDetailAddress: 'テストビル102',
       emgSelectedChome: '',
-      relationship: '父母',
+      relationship: '子女',
       relationshipOther: '',
-      emgZip: '232-0033',
+      emgZip: '150-0001',
     });
     setFormErrors({});
   };
@@ -598,161 +641,220 @@ export default function Register() {
             className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 w-full mt-4"
             onClick={() => router.push("/")}
           >
-            {lang === 'zh' ? '返回首页' : 'トップページへ戻る'}
+            {lang === "zh" ? "返回首页" : "トップページへ戻る"}
           </button>
         </div>
       </div>
     );
   }
 
+  // 工具函数：数字转"YYYY年MM月DD日"
+  function toJPDateStr(val: string) {
+    if (!/^\d{8}$/.test(val)) return val;
+    const y = val.slice(0, 4);
+    const m = val.slice(4, 6);
+    const d = val.slice(6, 8);
+    const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    if (isNaN(dateObj.getTime())) return val;
+    return val; // 直接返回原始值，不转换为年月日格式
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 relative">
+      {/* 返回主页按钮 */}
+      <button
+        className="absolute top-4 left-4 text-[#0066cc] dark:text-[#0a84ff] hover:underline z-50"
+        onClick={() => router.push("/")}
+      >
+        {lang === "zh" ? "返回首页" : "トップページへ戻る"}
+      </button>
       {langSwitch}
       <h1 className="text-3xl font-bold mb-8 mt-2 text-center w-full">{lang === 'zh' ? '名簿登陆' : '新規名簿登録'}</h1>
       <form className="w-full max-w-2xl space-y-4" onSubmit={handleSubmit}>
         {/* 基本信息 */}
         <div className="mb-8">
-          <div className="flex gap-2">
-            <div className="flex-1 flex flex-col">
-              <label className="font-medium mb-1">{lang === "zh" ? "姓" : "姓"}</label>
-              <input className={`border rounded px-3 py-2 ${formErrors.firstName ? 'border-red-500' : ''}`} value={form.firstName} onChange={e => handleInput('firstName', e.target.value)} />
+        <div className="flex gap-2">
+          <div className="flex-1 flex flex-col">
+            <label className="font-medium mb-1">{lang === "zh" ? "姓" : "姓"}</label>
+              <input name="firstName" className={`border rounded px-3 py-2 ${formErrors.firstName ? 'border-red-500' : ''}`} value={form.firstName} onChange={e => handleInput('firstName', e.target.value)} />
               {formErrors.firstName && <span className="text-red-500 text-sm mt-1">{formErrors.firstName}</span>}
-            </div>
-            <div className="flex-1 flex flex-col">
-              <label className="font-medium mb-1">{lang === "zh" ? "名" : "名"}</label>
-              <input className={`border rounded px-3 py-2 ${formErrors.lastName ? 'border-red-500' : ''}`} value={form.lastName} onChange={e => handleInput('lastName', e.target.value)} />
+          </div>
+          <div className="flex-1 flex flex-col">
+            <label className="font-medium mb-1">{lang === "zh" ? "名" : "名"}</label>
+              <input name="lastName" className={`border rounded px-3 py-2 ${formErrors.lastName ? 'border-red-500' : ''}`} value={form.lastName} onChange={e => handleInput('lastName', e.target.value)} />
               {formErrors.lastName && <span className="text-red-500 text-sm mt-1">{formErrors.lastName}</span>}
-            </div>
           </div>
+        </div>
           <div className="flex gap-2 mt-4">
-            <div className="flex-1 flex flex-col">
-              <label className="font-medium mb-1">{lang === "zh" ? "姓(ふりがな)" : "姓(ふりがな)"}</label>
-              <input className={`border rounded px-3 py-2 ${formErrors.firstNameFurigana ? 'border-red-500' : ''}`} value={form.firstNameFurigana} onChange={e => handleInput('firstNameFurigana', e.target.value)} />
+          <div className="flex-1 flex flex-col">
+            <label className="font-medium mb-1">{lang === "zh" ? "姓(ふりがな)" : "姓(ふりがな)"}</label>
+              <input name="firstNameFurigana" className={`border rounded px-3 py-2 ${formErrors.firstNameFurigana ? 'border-red-500' : ''}`} value={form.firstNameFurigana} onChange={e => handleInput('firstNameFurigana', e.target.value)} />
               {formErrors.firstNameFurigana && <span className="text-red-500 text-sm mt-1">{formErrors.firstNameFurigana}</span>}
-            </div>
-            <div className="flex-1 flex flex-col">
-              <label className="font-medium mb-1">{lang === "zh" ? "名(ふりがな)" : "名(ふりがな)"}</label>
-              <input className={`border rounded px-3 py-2 ${formErrors.lastNameFurigana ? 'border-red-500' : ''}`} value={form.lastNameFurigana} onChange={e => handleInput('lastNameFurigana', e.target.value)} />
+          </div>
+          <div className="flex-1 flex flex-col">
+            <label className="font-medium mb-1">{lang === "zh" ? "名(ふりがな)" : "名(ふりがな)"}</label>
+              <input name="lastNameFurigana" className={`border rounded px-3 py-2 ${formErrors.lastNameFurigana ? 'border-red-500' : ''}`} value={form.lastNameFurigana} onChange={e => handleInput('lastNameFurigana', e.target.value)} />
               {formErrors.lastNameFurigana && <span className="text-red-500 text-sm mt-1">{formErrors.lastNameFurigana}</span>}
-            </div>
           </div>
+        </div>
           <div className="flex gap-2 mt-4">
-            <div className="flex-1 flex flex-col">
-              <label className="font-medium mb-1">{lang === "zh" ? "姓(罗马字)" : "姓(ローマ字)"}</label>
-              <input className={`border rounded px-3 py-2 ${formErrors.firstNameRomaji ? 'border-red-500' : ''}`} value={form.firstNameRomaji} onChange={e => handleInput('firstNameRomaji', e.target.value)} />
+          <div className="flex-1 flex flex-col">
+            <label className="font-medium mb-1">{lang === "zh" ? "姓(罗马字)" : "姓(ローマ字)"}</label>
+              <input name="firstNameRomaji" className={`border rounded px-3 py-2 ${formErrors.firstNameRomaji ? 'border-red-500' : ''}`} value={form.firstNameRomaji} onChange={e => handleInput('firstNameRomaji', e.target.value)} />
               {formErrors.firstNameRomaji && <span className="text-red-500 text-sm mt-1">{formErrors.firstNameRomaji}</span>}
-            </div>
-            <div className="flex-1 flex flex-col">
-              <label className="font-medium mb-1">{lang === "zh" ? "名(罗马字)" : "名(ローマ字)"}</label>
-              <input className={`border rounded px-3 py-2 ${formErrors.lastNameRomaji ? 'border-red-500' : ''}`} value={form.lastNameRomaji} onChange={e => handleInput('lastNameRomaji', e.target.value)} />
+          </div>
+          <div className="flex-1 flex flex-col">
+            <label className="font-medium mb-1">{lang === "zh" ? "名(罗马字)" : "名(ローマ字)"}</label>
+              <input name="lastNameRomaji" className={`border rounded px-3 py-2 ${formErrors.lastNameRomaji ? 'border-red-500' : ''}`} value={form.lastNameRomaji} onChange={e => handleInput('lastNameRomaji', e.target.value)} />
               {formErrors.lastNameRomaji && <span className="text-red-500 text-sm mt-1">{formErrors.lastNameRomaji}</span>}
-            </div>
           </div>
+        </div>
           <div className="flex flex-col mt-4">
-            <label className="font-medium mb-1">{lang === "zh" ? "性别" : "性別"}</label>
-            <div className="flex gap-4">
-              <label className="flex items-center gap-1">
+          <label className="font-medium mb-1">{lang === "zh" ? "性别" : "性別"}</label>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-1">
                 <input type="radio" name="gender" value="男" checked={form.gender === "男"} onChange={e => handleInput('gender', e.target.value)} />
-                {lang === "zh" ? "男" : "男"}
-              </label>
-              <label className="flex items-center gap-1">
+              {lang === "zh" ? "男" : "男"}
+            </label>
+            <label className="flex items-center gap-1">
                 <input type="radio" name="gender" value="女" checked={form.gender === "女"} onChange={e => handleInput('gender', e.target.value)} />
-                {lang === "zh" ? "女" : "女"}
-              </label>
-            </div>
-            {formErrors.gender && <span className="text-red-500 text-sm mt-1">{formErrors.gender}</span>}
+              {lang === "zh" ? "女" : "女"}
+            </label>
           </div>
+            {formErrors.gender && <span className="text-red-500 text-sm mt-1">{formErrors.gender}</span>}
+        </div>
           {/* 出生年月日 */}
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === 'zh' ? '出生年月日' : '生年月日'}</label>
-            <input
+          <input
               className={`border rounded px-3 py-2 w-full ${formErrors.birth ? 'border-red-500' : ''}`}
-              type="text"
-              value={form.birth}
-              onChange={e => handleInput('birth', e.target.value.replace(/[^0-9]/g, '').slice(0, 8))}
-              onBlur={e => {
-                const raw = e.target.value.replace(/[^0-9]/g, "");
-                if (raw.length === 8) {
-                  const y = raw.slice(0, 4);
-                  const m = raw.slice(4, 6);
-                  const d = raw.slice(6, 8);
-                  handleInput('birth', `${y}-${m}-${d}`);
+            type="text"
+              value={birthRaw.length === 8 && /^\d{8}$/.test(birthRaw) && !isNaN(new Date(parseInt(birthRaw.slice(0,4)),parseInt(birthRaw.slice(4,6))-1,parseInt(birthRaw.slice(6,8))).getTime()) ? toJPDateStr(birthRaw) : birthRaw}
+            onChange={e => {
+                let val = e.target.value.replace(/[^0-9]/g, "").slice(0, 8);
+                setBirthRaw(val);
+                setForm(prev => ({ ...prev, birth: val }));
+              }}
+              onFocus={e => {
+                if (/^\d{4}年\d{2}月\d{2}日$/.test(e.target.value)) {
+                  setBirthRaw(form.birth);
+                  e.target.value = form.birth;
                 }
               }}
               placeholder={lang === 'zh' ? '例：19900101' : '例：19900101'}
-              maxLength={8}
+              maxLength={12}
             />
+            {form.birth.length === 8 && (() => {
+              const y = parseInt(form.birth.slice(0, 4));
+              const m = parseInt(form.birth.slice(4, 6));
+              const d = parseInt(form.birth.slice(6, 8));
+              const birthDate = new Date(y, m - 1, d);
+              if (!isNaN(birthDate.getTime())) {
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const mm = today.getMonth() - birthDate.getMonth();
+                if (mm < 0 || (mm === 0 && today.getDate() < birthDate.getDate())) age--;
+                if (age < 16 || age > 70) {
+                  return <div className="mt-2 text-base text-red-500">{lang === 'zh' ? '年龄必须在16~70岁之间' : '16歳以上70歳以下である必要があります'}</div>;
+                }
+                return <div className="mt-2 text-base text-gray-700">{lang === 'zh' ? `年龄：${age}岁` : `年齢：${age}歳`}</div>;
+              }
+              return null;
+            })()}
             {formErrors.birth && <span className="text-red-500 text-sm mt-1">{formErrors.birth}</span>}
-          </div>
+        </div>
           {form.age && (
             <div className="flex items-center px-3 py-2 bg-gray-100 dark:bg-neutral-700 rounded mt-2">
               {form.age}{lang === 'zh' ? '岁' : '歳'}
-            </div>
+          </div>
           )}
         </div>
 
         {/* 国籍信息 */}
         <div className="mb-8">
-          <div className="flex flex-col">
+        <div className="flex flex-col">
             <label className="font-medium mb-1">{lang === "zh" ? "国籍" : "国籍"}</label>
-            <select className={`border rounded px-3 py-2 ${formErrors.nationality ? 'border-red-500' : ''}`} value={form.nationality} onChange={e => handleInput('nationality', e.target.value)}>
-              <option value="">{lang === "zh" ? "请选择" : "選択してください"}</option>
+            <select name="nationality" className={`border rounded px-3 py-2 ${formErrors.nationality ? 'border-red-500' : ''}`} value={form.nationality} onChange={e => handleInput('nationality', e.target.value)}>
+            <option value="">{lang === "zh" ? "请选择" : "選択してください"}</option>
               <option value="中国">{lang === "zh" ? "中国" : "中国"}</option>
               <option value="日本">{lang === "zh" ? "日本" : "日本"}</option>
               <option value="其他">{lang === "zh" ? "其他" : "その他"}</option>
-            </select>
-            {form.nationality === "其他" && (
-              <input className="border rounded px-3 py-2 mt-2" placeholder={lang === "zh" ? "请输入其他国籍" : "その他の国籍を入力"} value={form.nationalityOther} onChange={e => handleInput('nationalityOther', e.target.value)} />
+          </select>
+          {form.nationality === "其他" && (
+              <input name="nationalityOther" className="border rounded px-3 py-2 mt-2" placeholder={lang === "zh" ? "请输入其他国籍" : "その他の国籍を入力"} value={form.nationalityOther} onChange={e => handleInput('nationalityOther', e.target.value)} />
             )}
             {formErrors.nationality && <span className="text-red-500 text-sm mt-1">{formErrors.nationality}</span>}
-          </div>
-          {form.nationality !== "日本" && (
-            <>
+        </div>
+        {form.nationality !== "日本" && (
+          <>
               <div className="flex flex-col mt-4">
                 <label className="font-medium mb-1">{lang === "zh" ? "在留资格" : "在留資格"}</label>
-                <select className={`border rounded px-3 py-2 ${formErrors.visa ? 'border-red-500' : ''}`} value={form.visa} onChange={e => handleInput('visa', e.target.value)}>
+                <select name="visa" className={`border rounded px-3 py-2 ${formErrors.visa ? 'border-red-500' : ''}`} value={form.visa} onChange={e => handleInput('visa', e.target.value)}>
                   {visaOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                </select>
+              </select>
                 {form.visa === '其他' && (
-                  <input className="border rounded px-3 py-2 mt-2" placeholder={lang === "zh" ? "请输入其他在留资格" : "その他の在留資格を入力"} value={form.visaOther} onChange={e => handleInput('visaOther', e.target.value)} />
+                  <input name="visaOther" className="border rounded px-3 py-2 mt-2" placeholder={lang === "zh" ? "请输入其他在留资格" : "その他の在留資格を入力"} value={form.visaOther} onChange={e => handleInput('visaOther', e.target.value)} />
                 )}
                 {formErrors.visa && <span className="text-red-500 text-sm mt-1">{formErrors.visa}</span>}
-              </div>
+            </div>
               {/* 在留卡期限 */}
               <div className="flex flex-col mt-4">
                 <label className="font-medium mb-1">{lang === 'zh' ? '在留卡期限' : '在留カード期限'}</label>
-                <input
+              <input
                   className={`border rounded px-3 py-2 w-full ${formErrors.visaDate ? 'border-red-500' : ''}`}
-                  type="text"
-                  value={form.visaDate}
-                  onChange={e => handleInput('visaDate', e.target.value.replace(/[^0-9]/g, '').slice(0, 8))}
-                  onBlur={e => {
-                    const raw = e.target.value.replace(/[^0-9]/g, "");
-                    if (raw.length === 8) {
-                      const y = raw.slice(0, 4);
-                      const m = raw.slice(4, 6);
-                      const d = raw.slice(6, 8);
-                      handleInput('visaDate', `${y}-${m}-${d}`);
+                type="text"
+                  value={visaDateRaw.length === 8 && /^\d{8}$/.test(visaDateRaw) && !isNaN(new Date(parseInt(visaDateRaw.slice(0,4)),parseInt(visaDateRaw.slice(4,6))-1,parseInt(visaDateRaw.slice(6,8))).getTime()) ? toJPDateStr(visaDateRaw) : visaDateRaw}
+                onChange={e => {
+                    let val = e.target.value.replace(/[^0-9]/g, "").slice(0, 8);
+                    setVisaDateRaw(val);
+                    setForm(prev => ({ ...prev, visaDate: val }));
+                  }}
+                  onFocus={e => {
+                    if (/^\d{4}年\d{2}月\d{2}日$/.test(e.target.value)) {
+                      setVisaDateRaw(form.visaDate);
+                      e.target.value = form.visaDate;
                     }
                   }}
                   placeholder={lang === 'zh' ? '例：20250101' : '例：20250101'}
-                  maxLength={8}
+                  maxLength={12}
                 />
+                {form.visaDate.length === 8 && (() => {
+                  const y = parseInt(form.visaDate.slice(0, 4));
+                  const m = parseInt(form.visaDate.slice(4, 6));
+                  const d = parseInt(form.visaDate.slice(6, 8));
+                  const dateObj = new Date(y, m - 1, d);
+                  let err = '';
+                  if (!/^\d{8}$/.test(form.visaDate) || isNaN(dateObj.getTime())) {
+                    err = lang === 'zh' ? '日期格式错误' : '日付形式エラー';
+                    } else {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const tenYearsLater = new Date(today);
+                    tenYearsLater.setFullYear(today.getFullYear() + 10);
+                    if (dateObj < today) {
+                      err = lang === 'zh' ? '日期不能早于今天' : '本日以前の日付は選択できません';
+                    } else if (dateObj > tenYearsLater) {
+                      err = lang === 'zh' ? '日期不能超过10年' : '10年以内の日付を選択してください';
+                    }
+                  }
+                  if (err) return <span className="text-red-500 text-sm mt-1">{err}</span>;
+                  return null;
+                })()}
                 {formErrors.visaDate && <span className="text-red-500 text-sm mt-1">{formErrors.visaDate}</span>}
-              </div>
-            </>
+            </div>
+          </>
           )}
         </div>
 
         {/* 工作信息 */}
         <div className="mb-8">
-          <div className="flex flex-col">
+        <div className="flex flex-col">
             <label className="font-medium mb-1">{lang === "zh" ? "工种" : "工種"}</label>
-            <div className="flex gap-4 flex-wrap">
-              {jobOptions.map(j => (
+          <div className="flex gap-4 flex-wrap">
+            {jobOptions.map(j => (
                 <label key={j} className="flex items-center gap-1">
-                  <input
-                    type="checkbox"
+                <input
+                  type="checkbox"
                     checked={form.jobs.includes(j)}
                     onChange={() => {
                       setForm(prev => ({
@@ -764,56 +866,87 @@ export default function Register() {
                     }}
                   />
                   {j}
-                </label>
-              ))}
-            </div>
+              </label>
+            ))}
+          </div>
             {/* 工种其他输入框 */}
             {form.jobs.includes(lang === 'zh' ? '其他' : 'その他') && (
-              <input className="border rounded px-3 py-2 mt-2" placeholder={lang === 'zh' ? '请输入其他工种' : 'その他の工種を入力'} value={jobOther} onChange={e => setJobOther(e.target.value)} />
-            )}
-          </div>
+              <input name="jobOther" className="border rounded px-3 py-2 mt-2" placeholder={lang === 'zh' ? '请输入其他工种' : 'その他の工種を入力'} value={jobOther} onChange={e => setJobOther(e.target.value)} />
+          )}
+        </div>
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === "zh" ? "经验年数" : "経験年数"}</label>
-            <div className="flex gap-2 items-center">
-              <input
-                type="text"
-                maxLength={2}
-                className="border rounded px-3 py-2 w-20"
-                value={form.expYear}
+          <div className="flex gap-2 items-center">
+            <input 
+              type="text"
+              maxLength={2}
+              className="border rounded px-3 py-2 w-20"
+              value={form.expYear}
                 onChange={e => handleInput('expYear', e.target.value.replace(/[^0-9]/g, ""))}
                 placeholder={lang === "zh" ? "年" : "年"}
-              />
-              <span>{lang === "zh" ? "年" : "年"}</span>
-              <input
-                type="text"
-                maxLength={2}
-                className="border rounded px-3 py-2 w-20"
-                value={form.expMonth}
+            />
+            <span>{lang === "zh" ? "年" : "年"}</span>
+            <input 
+              type="text"
+              maxLength={2}
+              className="border rounded px-3 py-2 w-20"
+              value={form.expMonth}
                 onChange={e => handleInput('expMonth', e.target.value.replace(/[^0-9]/g, ""))}
                 placeholder={lang === "zh" ? "月" : "ヶ月"}
-              />
-              <span>{lang === "zh" ? "月" : "ヶ月"}</span>
-            </div>
+            />
+            <span>{lang === "zh" ? "月" : "ヶ月"}</span>
           </div>
+        </div>
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === 'zh' ? '劳灾保险到期' : '労災保険満了日'}</label>
             <input
               className={`border rounded px-3 py-2 w-full ${formErrors.insuranceDate ? 'border-red-500' : ''}`}
               type="text"
-              value={form.insuranceDate}
-              onChange={e => handleInput('insuranceDate', e.target.value.replace(/[^0-9]/g, '').slice(0, 8))}
-              onBlur={e => {
-                const raw = e.target.value.replace(/[^0-9]/g, "");
-                if (raw.length === 8) {
-                  const y = raw.slice(0, 4);
-                  const m = raw.slice(4, 6);
-                  const d = raw.slice(6, 8);
-                  handleInput('insuranceDate', `${y}-${m}-${d}`);
+              value={insuranceDateRaw.length === 8 && /^\d{8}$/.test(insuranceDateRaw) && !isNaN(new Date(parseInt(insuranceDateRaw.slice(0,4)),parseInt(insuranceDateRaw.slice(4,6))-1,parseInt(insuranceDateRaw.slice(6,8))).getTime()) ? toJPDateStr(insuranceDateRaw) : insuranceDateRaw}
+              onChange={e => {
+                let val = e.target.value.replace(/[^0-9]/g, "").slice(0, 8);
+                setInsuranceDateRaw(val);
+                setForm(prev => ({ ...prev, insuranceDate: val }));
+              }}
+              onFocus={e => {
+                if (/^\d{4}年\d{2}月\d{2}日$/.test(e.target.value)) {
+                  setInsuranceDateRaw(form.insuranceDate);
+                  e.target.value = form.insuranceDate;
                 }
               }}
               placeholder={lang === 'zh' ? '例：20250101' : '例：20250101'}
-              maxLength={8}
+              maxLength={12}
             />
+            {form.insuranceDate.length === 8 && (() => {
+              const y = parseInt(form.insuranceDate.slice(0, 4));
+              const m = parseInt(form.insuranceDate.slice(4, 6));
+              const d = parseInt(form.insuranceDate.slice(6, 8));
+              const dateObj = new Date(y, m - 1, d);
+              let err = '';
+              if (!/^\d{8}$/.test(form.insuranceDate) || isNaN(dateObj.getTime())) {
+                err = lang === 'zh' ? '日期格式错误' : '日付形式エラー';
+              } else {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                let insuranceMax = '';
+                if (today.getMonth() + 1 > 3 || (today.getMonth() + 1 === 3 && today.getDate() > 31)) {
+                  insuranceMax = `${today.getFullYear() + 1}0331`;
+                } else {
+                  insuranceMax = `${today.getFullYear()}0331`;
+                }
+                const maxY = parseInt(insuranceMax.slice(0, 4));
+                const maxM = parseInt(insuranceMax.slice(4, 6));
+                const maxD = parseInt(insuranceMax.slice(6, 8));
+                const maxDate = new Date(maxY, maxM - 1, maxD);
+                if (dateObj < today) {
+                  err = lang === 'zh' ? '日期不能早于今天' : '本日以前の日付は選択できません';
+                } else if (dateObj > maxDate) {
+                  err = lang === 'zh' ? `日期不能超过${insuranceMax.slice(0,4)}年${insuranceMax.slice(4,6)}月${insuranceMax.slice(6,8)}日` : `${insuranceMax.slice(0,4)}年${insuranceMax.slice(4,6)}月${insuranceMax.slice(6,8)}日までの日付を選択してください`;
+                }
+              }
+              if (err) return <span className="text-red-500 text-sm mt-1">{err}</span>;
+              return null;
+            })()}
             {formErrors.insuranceDate && <span className="text-red-500 text-sm mt-1">{formErrors.insuranceDate}</span>}
           </div>
           {/* 劳灾保险到期区间提示 */}
@@ -822,42 +955,36 @@ export default function Register() {
 
         {/* 住址信息 */}
         <div className="mb-8">
-          <div className="flex flex-col">
+        <div className="flex flex-col">
             <label className="font-medium mb-1">{lang === "zh" ? "邮编" : "郵便番号"}</label>
-            <input
+          <input name="zip" 
               className={`border rounded px-3 py-2 ${zipError ? 'border-red-500' : ''}`}
-              value={form.zip}
+            value={form.zip} 
               onChange={e => handleInput('zip', e.target.value.replace(/[^0-9-]/g, ""))}
-              maxLength={8}
+            maxLength={8} 
               placeholder={lang === "zh" ? "例：123-4567" : "例：123-4567"}
-            />
+          />
             {!validateZip(form.zip) && form.zip && <span className="text-red-500 text-sm mt-1">{lang === 'zh' ? '请输入7位数字邮编' : '7桁の郵便番号を入力してください'}</span>}
             {zipError && <span className="text-red-500 text-sm mt-1">{zipError}</span>}
-          </div>
+        </div>
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === "zh" ? "住址" : "住所"}</label>
-            {autoAddress ? (
-              <div className="px-3 py-2 bg-gray-100 dark:bg-neutral-700 rounded border border-gray-200 dark:border-neutral-600 text-gray-700 dark:text-gray-200">{autoAddress}</div>
-            ) : (
-              <>
-                <input
-                  className="border rounded px-3 py-2"
-                  value={form.address}
-                  onChange={e => handleInput('address', e.target.value)}
-                  placeholder={lang === "zh" ? "市区町村" : "市区町村"}
-                />
-                <input
-                  className="border rounded px-3 py-2 mt-2"
-                  value={form.detailAddress}
-                  onChange={e => handleInput('detailAddress', e.target.value)}
-                  placeholder={lang === "zh" ? "详细地址" : "詳細住所"}
-                />
-              </>
+            {autoAddress && (
+              <div className="text-gray-700 dark:text-gray-200 mb-2">
+                {autoAddress}
+              </div>
             )}
-          </div>
+            <input
+              className="border rounded px-3 py-2"
+              name="address"
+              value={form.address}
+              onChange={e => handleInput('address', e.target.value)}
+              placeholder={lang === "zh" ? "例：1丁目2番地3号" : "例：1丁目2番地3号"}
+            />
+        </div>
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === "zh" ? "电话" : "電話番号"}</label>
-            <input className={`border rounded px-3 py-2 ${formErrors.phone ? 'border-red-500' : ''}`} value={form.phone} onChange={e => handleInput('phone', e.target.value)} />
+            <input name="phone" className={`border rounded px-3 py-2 ${formErrors.phone ? 'border-red-500' : ''}`} value={form.phone} onChange={e => handleInput('phone', e.target.value)} />
             {!validatePhone(form.phone) && form.phone && <span className="text-red-500 text-sm mt-1">{lang === 'zh' ? '请输入日本手机号格式，如090-1234-5678' : '090-1234-5678の形式で入力してください'}</span>}
             {formErrors.phone && <span className="text-red-500 text-sm mt-1">{formErrors.phone}</span>}
           </div>
@@ -868,109 +995,129 @@ export default function Register() {
           {/* 健康诊断日 */}
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === 'zh' ? '健康诊断日' : '健康診断日'}</label>
-            <input
+          <input
               className={`border rounded px-3 py-2 w-full ${formErrors.healthDate ? 'border-red-500' : ''}`}
-              type="text"
-              value={form.healthDate}
-              onChange={e => handleInput('healthDate', e.target.value.replace(/[^0-9]/g, '').slice(0, 8))}
-              onBlur={e => {
-                const raw = e.target.value.replace(/[^0-9]/g, "");
-                if (raw.length === 8) {
-                  const y = raw.slice(0, 4);
-                  const m = raw.slice(4, 6);
-                  const d = raw.slice(6, 8);
-                  handleInput('healthDate', `${y}-${m}-${d}`);
+            type="text"
+              value={healthDateRaw.length === 8 && /^\d{8}$/.test(healthDateRaw) && !isNaN(new Date(parseInt(healthDateRaw.slice(0,4)),parseInt(healthDateRaw.slice(4,6))-1,parseInt(healthDateRaw.slice(6,8))).getTime()) ? toJPDateStr(healthDateRaw) : healthDateRaw}
+            onChange={e => {
+                let val = e.target.value.replace(/[^0-9]/g, "").slice(0, 8);
+                setHealthDateRaw(val);
+                setForm(prev => ({ ...prev, healthDate: val }));
+              }}
+              onFocus={e => {
+                if (/^\d{4}年\d{2}月\d{2}日$/.test(e.target.value)) {
+                  setHealthDateRaw(form.healthDate);
+                  e.target.value = form.healthDate;
                 }
               }}
               placeholder={lang === 'zh' ? '例：20240101' : '例：20240101'}
-              maxLength={8}
+              maxLength={12}
             />
+            {form.healthDate.length === 8 && (() => {
+              const y = parseInt(form.healthDate.slice(0, 4));
+              const m = parseInt(form.healthDate.slice(4, 6));
+              const d = parseInt(form.healthDate.slice(6, 8));
+              const dateObj = new Date(y, m - 1, d);
+              let err = '';
+              if (!/^\d{8}$/.test(form.healthDate) || isNaN(dateObj.getTime())) {
+                err = lang === 'zh' ? '日期格式错误' : '日付形式エラー';
+                } else {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const oneYearAgo = new Date(today);
+                oneYearAgo.setFullYear(today.getFullYear() - 1);
+                if (dateObj < oneYearAgo || dateObj > today) {
+                  err = lang === 'zh' ? '日期只能选当天起1年以内' : '本日から1年以内の日付のみ選択可能';
+                }
+              }
+              if (err) return <span className="text-red-500 text-sm mt-1">{err}</span>;
+              return null;
+            })()}
             {formErrors.healthDate && <span className="text-red-500 text-sm mt-1">{formErrors.healthDate}</span>}
-          </div>
+        </div>
           {/* 健康诊断日区间提示 */}
           <div className="text-xs text-gray-500 mt-1">{lang === 'zh' ? '有效区间' : '有効期間'}：{healthMinStr} ~ {healthMaxStr}</div>
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === "zh" ? "血压" : "血圧"}</label>
             <div className="flex gap-2">
-              <input
-                className="border rounded px-3 py-2 w-1/2"
-                placeholder={lang === "zh" ? "高压" : "収縮期"}
-                value={form.bpHigh}
-                onChange={e => {
-                  const val = e.target.value.replace(/[^0-9]/g, "");
-                  if (!val) {
-                    handleInput('bpHigh', '');
-                    return;
-                  }
-                  const num = parseInt(val, 10);
-                  if (num >= 80 && num <= 250) {
+              <div className="w-1/2 flex flex-col">
+                <input
+                  className="border rounded px-3 py-2"
+                  placeholder={lang === "zh" ? "高压" : "収縮期"}
+                  name="bpHigh"
+                  value={form.bpHigh}
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^0-9]/g, "");
                     handleInput('bpHigh', val);
-                  }
-                }}
-                maxLength={3}
-              />
-              <input
-                className="border rounded px-3 py-2 w-1/2"
-                placeholder={lang === "zh" ? "低压" : "拡張期"}
-                value={form.bpLow}
-                onChange={e => {
-                  const val = e.target.value.replace(/[^0-9]/g, "");
-                  if (!val) {
-                    handleInput('bpLow', '');
-                    return;
-                  }
-                  const num = parseInt(val, 10);
-                  if (num >= 40 && num <= 150) {
+                  }}
+                  maxLength={3}
+                />
+                <div className="mt-1 text-xs text-gray-500">
+                  {lang === 'zh' ? '高压100~139（mmHg）' : '収縮期100~139（mmHg）'}
+                </div>
+              </div>
+              <div className="w-1/2 flex flex-col">
+                <input
+                  className="border rounded px-3 py-2"
+                  placeholder={lang === "zh" ? "低压" : "拡張期"}
+                  name="bpLow"
+                  value={form.bpLow}
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^0-9]/g, "");
                     handleInput('bpLow', val);
-                  }
-                }}
-                maxLength={3}
-              />
+                  }}
+                  maxLength={3}
+                />
+                <div className="mt-1 text-xs text-gray-500">
+                  {lang === 'zh' ? '低压60~89（mmHg）' : '拡張期60~89（mmHg）'}
+                </div>
+              </div>
             </div>
+            {/* 范围错误提示 */}
             {bpError && (
               <div className="mt-1 text-sm text-red-500">{bpError}</div>
             )}
             {!bpError && bpStatus && (
               <div className={`mt-1 text-sm ${bpStatusColor}`}>{bpStatus}</div>
             )}
-          </div>
+        </div>
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === "zh" ? "血型" : "血液型"}</label>
-            <select
-              className="border rounded px-3 py-2"
-              value={form.blood}
+          <select name="blood" 
+            className="border rounded px-3 py-2"
+            value={form.blood}
               onChange={e => handleInput('blood', e.target.value)}
-            >
+          >
               <option value="">{lang === "zh" ? "请选择" : "選択してください"}</option>
               {["A", "B", "AB", "O"].map(b => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </div>
+          </select>
+        </div>
         </div>
 
         {/* 紧急联系人信息 */}
         <div className="mb-8">
-          <div className="flex gap-2">
-            <div className="flex-1 flex flex-col">
+        <div className="flex gap-2">
+          <div className="flex-1 flex flex-col">
               <label className="font-medium mb-1">{lang === "zh" ? "紧急联系人姓名" : "緊急連絡先氏名"}</label>
-              <input
-                className={`border rounded px-3 py-2 ${formErrors.emgName ? 'border-red-500' : ''}`}
-                value={form.emgName}
+            <input name="emgName" 
+              className={`border rounded px-3 py-2 ${formErrors.emgName ? 'border-red-500' : ''}`}
+              value={form.emgName}
                 onChange={e => handleInput('emgName', e.target.value)}
-              />
+            />
               {formErrors.emgName && <span className="text-red-500 text-sm mt-1">{formErrors.emgName}</span>}
-            </div>
-            <div className="flex-1 flex flex-col">
+          </div>
+          <div className="flex-1 flex flex-col">
               <label className="font-medium mb-1">{lang === "zh" ? "紧急联系人ふりがな" : "緊急連絡先ふりがな"}</label>
-              <input
+            <input name="emgFurigana" 
                 className="border rounded px-3 py-2"
-                value={form.emgFurigana}
+              value={form.emgFurigana}
                 onChange={e => handleInput('emgFurigana', e.target.value)}
               />
-            </div>
           </div>
+        </div>
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === "zh" ? "紧急联系人电话" : "緊急連絡先電話番号"}</label>
-            <input
+            <input name="emgPhone"
               className={`border rounded px-3 py-2 ${formErrors.emgPhone ? 'border-red-500' : ''}`}
               value={form.emgPhone}
               onChange={e => handleInput('emgPhone', e.target.value)}
@@ -979,34 +1126,54 @@ export default function Register() {
             {formErrors.emgPhone && <span className="text-red-500 text-sm mt-1">{formErrors.emgPhone}</span>}
           </div>
           <div className="flex flex-col mt-4">
-            <label className="font-medium mb-1">{lang === "zh" ? "与本人关系" : "本人との関係"}</label>
-            <select
-              className={`border rounded px-3 py-2 ${formErrors.relationship ? 'border-red-500' : ''}`}
-              value={form.relationship}
+          <label className="font-medium mb-1">{lang === "zh" ? "与本人关系" : "本人との関係"}</label>
+          <select name="relationship" 
+            className={`border rounded px-3 py-2 ${formErrors.relationship ? 'border-red-500' : ''}`}
+            value={form.relationship}
               onChange={e => handleInput('relationship', e.target.value)}
-            >
-              <option value="">{lang === "zh" ? "请选择" : "選択してください"}</option>
+          >
+            <option value="">{lang === "zh" ? "请选择" : "選択してください"}</option>
               <option value="配偶">{lang === "zh" ? "配偶" : "配偶者"}</option>
               <option value="父母">{lang === "zh" ? "父母" : "親"}</option>
               <option value="子女">{lang === "zh" ? "子女" : "子"}</option>
               <option value="其他">{lang === "zh" ? "其他" : "その他"}</option>
-            </select>
-            {form.relationship === "其他" && (
-              <input
-                className="border rounded px-3 py-2 mt-2"
-                placeholder={lang === "zh" ? "请输入其他关系" : "その他の関係を入力"}
-                value={form.relationshipOther}
-                onChange={e => handleInput('relationshipOther', e.target.value)}
-              />
-            )}
-            {formErrors.relationship && <span className="text-red-500 text-sm mt-1">{formErrors.relationship}</span>}
-          </div>
-          <div className="flex flex-col mt-4">
-            <label className="font-medium mb-1 flex items-center gap-2">{lang === "zh" ? "紧急联系人邮编" : "緊急連絡先郵便番号"}
-              <input type="checkbox" checked={form.emgSame} onChange={e => updateForm('emgSame', e.target.checked)} />
-              <span className="text-xs">{lang === 'zh' ? '同上' : '同上'}</span>
-            </label>
+          </select>
+          {form.relationship === "其他" && (
             <input
+              className="border rounded px-3 py-2 mt-2"
+              name="relationshipOther"
+              placeholder={lang === "zh" ? "请输入其他关系" : "その他の関係を入力"}
+              value={form.relationshipOther}
+                onChange={e => handleInput('relationshipOther', e.target.value)}
+            />
+          )}
+            {formErrors.relationship && <span className="text-red-500 text-sm mt-1">{formErrors.relationship}</span>}
+        </div>
+          <div className="flex flex-col mt-4">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-medium">{lang === "zh" ? "紧急联系人邮编" : "緊急連絡先郵便番号"}</span>
+              <label className="flex items-center gap-2 cursor-pointer select-none p-2" style={{ fontSize: '1.25rem' }}>
+                <input 
+                  type="checkbox" 
+                  name="emgSame" 
+                  checked={form.emgSame} 
+                  onChange={e => {
+                    updateForm('emgSame', e.target.checked);
+                    if (e.target.checked) {
+                      updateForm('emgZip', form.zip);
+                      updateForm('emgAddress', form.address);
+                    } else {
+                      updateForm('emgZip', '');
+                      updateForm('emgAddress', '');
+                    }
+                  }}
+                  className="w-7 h-7 accent-blue-600"
+                  style={{ minWidth: '1.75rem', minHeight: '1.75rem' }}
+                />
+                <span className="text-lg font-bold">{lang === 'zh' ? '同上' : '同上'}</span>
+              </label>
+            </div>
+            <input name="emgZip" 
               className={`border rounded px-3 py-2 ${emgZipError ? 'border-red-500' : ''}`}
               value={form.emgZip}
               onChange={e => handleInput('emgZip', e.target.value.replace(/[^0-9-]/g, ""))}
@@ -1019,27 +1186,19 @@ export default function Register() {
           </div>
           <div className="flex flex-col mt-4">
             <label className="font-medium mb-1">{lang === "zh" ? "紧急联系人住址" : "緊急連絡先住所"}</label>
-            {emgAutoAddress ? (
-              <div className="px-3 py-2 bg-gray-100 dark:bg-neutral-700 rounded border border-gray-200 dark:border-neutral-600 text-gray-700 dark:text-gray-200">{emgAutoAddress}</div>
-            ) : (
-              <>
-                <input
-                  className="border rounded px-3 py-2"
-                  value={form.emgAddress}
-                  onChange={e => handleInput('emgAddress', e.target.value)}
-                  placeholder={lang === "zh" ? "市区町村" : "市区町村"}
-                  readOnly={form.emgSame}
-                />
-                <input
-                  className="border rounded px-3 py-2 mt-2"
-                  value={form.emgDetailAddress}
-                  onChange={e => handleInput('emgDetailAddress', e.target.value)}
-                  placeholder={lang === "zh" ? "详细地址" : "詳細住所"}
-                  readOnly={form.emgSame}
-                />
-              </>
+            {emgAutoAddress && (
+              <div className="text-gray-700 dark:text-gray-200 mb-2">
+                {emgAutoAddress}
+              </div>
             )}
-          </div>
+            <input name="emgAddress" 
+              className="border rounded px-3 py-2" 
+              value={form.emgAddress}
+              onChange={e => handleInput('emgAddress', e.target.value)}
+              placeholder={lang === "zh" ? "例：1丁目2番地3号" : "例：1丁目2番地3号"}
+              readOnly={form.emgSame}
+            />
+        </div>
         </div>
 
         {/* 提交按钮 */}
@@ -1078,8 +1237,8 @@ export default function Register() {
                   <div><span className="font-medium">{lang === 'zh' ? '性别' : '性別'}:</span> {form.gender}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '出生年月日' : '生年月日'}:</span> {form.birth}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '年龄' : '年齢'}:</span> {form.age}{lang === 'zh' ? '岁' : '歳'}</div>
-                </div>
-              </div>
+            </div>
+            </div>
 
               {/* 国籍信息 */}
               <div className="border-b pb-2">
@@ -1092,8 +1251,8 @@ export default function Register() {
                       <div><span className="font-medium">{lang === 'zh' ? '在留卡期限' : '在留カード期限'}:</span> {form.visaDate}</div>
                     </>
                   )}
-                </div>
-              </div>
+          </div>
+        </div>
 
               {/* 工作信息 */}
               <div className="border-b pb-2">
@@ -1102,18 +1261,18 @@ export default function Register() {
                   <div><span className="font-medium">{lang === 'zh' ? '工种' : '工種'}:</span> {form.jobs.join(', ')}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '经验年数' : '経験年数'}:</span> {form.expYear}{lang === 'zh' ? '年' : '年'}{form.expMonth}{lang === 'zh' ? '月' : 'ヶ月'}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '劳灾保险到期' : '労災保険満了日'}:</span> {form.insuranceDate}</div>
-                </div>
               </div>
+                  </div>
 
               {/* 联系信息 */}
               <div className="border-b pb-2">
                 <h3 className="font-bold mb-2">{lang === 'zh' ? '联系信息' : '連絡情報'}</h3>
                 <div className="grid grid-cols-2 gap-2">
                   <div><span className="font-medium">{lang === 'zh' ? '邮编' : '郵便番号'}:</span> {form.zip}</div>
-                  <div><span className="font-medium">{lang === 'zh' ? '住址' : '住所'}:</span> {form.address} {form.detailAddress}</div>
+                  <div><span className="font-medium">{lang === 'zh' ? '住址' : '住所'}:</span> {form.address}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '电话' : '電話番号'}:</span> {form.phone}</div>
-                </div>
-              </div>
+                  </div>
+            </div>
 
               {/* 健康信息 */}
               <div className="border-b pb-2">
@@ -1122,8 +1281,8 @@ export default function Register() {
                   <div><span className="font-medium">{lang === 'zh' ? '健康诊断日' : '健康診断日'}:</span> {form.healthDate}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '血压' : '血圧'}:</span> {form.bpHigh}/{form.bpLow}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '血型' : '血液型'}:</span> {form.blood}</div>
+            </div>
                 </div>
-              </div>
 
               {/* 紧急联系人信息 */}
               <div className="border-b pb-2">
@@ -1133,8 +1292,8 @@ export default function Register() {
                   <div><span className="font-medium">{lang === 'zh' ? 'ふりがな' : 'ふりがな'}:</span> {form.emgFurigana}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '关系' : '関係'}:</span> {form.relationship}{form.relationship === '其他' && form.relationshipOther ? `（${form.relationshipOther}）` : ''}</div>
                   <div><span className="font-medium">{lang === 'zh' ? '电话' : '電話番号'}:</span> {form.emgPhone}</div>
-                  <div><span className="font-medium">{lang === 'zh' ? '邮编' : '郵便番号'}:</span> {form.emgZip}</div>
-                  <div><span className="font-medium">{lang === 'zh' ? '住址' : '住所'}:</span> {form.emgAddress} {form.emgDetailAddress}</div>
+                  <div><span className="font-medium">{lang === 'zh' ? '邮编' : '郵便番号'}:</span> {form.emgSame ? form.zip : form.emgZip}</div>
+                  <div><span className="font-medium">{lang === 'zh' ? '住址' : '住所'}:</span> {form.emgSame ? form.address : form.emgAddress}</div>
                 </div>
               </div>
             </div>
@@ -1147,4 +1306,4 @@ export default function Register() {
       )}
     </div>
   );
-}
+} 

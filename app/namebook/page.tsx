@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const COMPANY_NAME = "株式会社ニュービルド";
@@ -26,6 +26,13 @@ interface UserInfo {
 export default function NamebookPage() {
   const [lang, setLang] = useState<'zh' | 'ja'>("zh");
   const router = useRouter();
+
+  useEffect(() => {
+    const savedLang = localStorage.getItem("lang");
+    if (savedLang === "zh" || savedLang === "ja") {
+      setLang(savedLang);
+    }
+  }, []);
 
   // 文案
   const texts = {
@@ -120,7 +127,11 @@ export default function NamebookPage() {
           className={`px-3 py-1.5 rounded-full text-sm border border-[#d2d2d7] hover:bg-[#f5f5f7] dark:border-[#424245] dark:hover:bg-[#1d1d1f] transition-colors ${
             lang === "zh" ? "bg-[#f5f5f7] dark:bg-[#1d1d1f]" : ""
           }`}
-          onClick={() => setLang("zh")}
+          onClick={() => {
+            setLang("zh");
+            localStorage.setItem("lang", "zh");
+            window.location.reload();
+          }}
         >
           中文
         </button>
@@ -128,7 +139,11 @@ export default function NamebookPage() {
           className={`px-3 py-1.5 rounded-full text-sm border border-[#d2d2d7] hover:bg-[#f5f5f7] dark:border-[#424245] dark:hover:bg-[#1d1d1f] transition-colors ${
             lang === "ja" ? "bg-[#f5f5f7] dark:bg-[#1d1d1f]" : ""
           }`}
-          onClick={() => setLang("ja")}
+          onClick={() => {
+            setLang("ja");
+            localStorage.setItem("lang", "ja");
+            window.location.reload();
+          }}
         >
           日本語
         </button>
@@ -152,7 +167,8 @@ export default function NamebookPage() {
       <div className="flex flex-col items-center gap-8 w-full max-w-2xl px-4">
         {/* 名簿登陆按钮 */}
         <button
-          className="px-8 py-4 rounded-full text-lg font-semibold bg-gradient-to-b from-[#3b82f6] to-[#2563eb] text-white shadow-md hover:from-[#60a5fa] hover:to-[#3b82f6] hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0.5 transition-all duration-200 min-w-[200px]"
+          className="px-8 py-4 rounded-full text-lg font-bold bg-gradient-to-b from-[#bfc9d1] via-[#e6e8ea] to-[#7a7e83] text-black border border-[#bfc9d1] shadow-md hover:from-[#e6e8ea] hover:to-[#bfc9d1] active:from-[#7a7e83] active:to-[#bfc9d1] transition-all duration-200 min-w-[200px]"
+          style={{ boxShadow: '0 4px 16px 0 #bfc9d1, 0 1.5px 0 #fff inset' }}
           onClick={() => router.push("/register")}
         >
           {texts[lang].namebook}
@@ -162,7 +178,8 @@ export default function NamebookPage() {
         <div className="flex flex-col gap-4 items-center">
           {/* 已登录名簿查看/修改按钮 */}
           <button
-            className="px-8 py-4 rounded-full text-lg font-semibold bg-gradient-to-b from-[#3b82f6] to-[#2563eb] text-white shadow-md hover:from-[#60a5fa] hover:to-[#3b82f6] hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0.5 transition-all duration-200 min-w-[200px]"
+            className="px-8 py-4 rounded-full text-lg font-bold bg-gradient-to-b from-[#bfc9d1] via-[#e6e8ea] to-[#7a7e83] text-black border border-[#bfc9d1] shadow-md hover:from-[#e6e8ea] hover:to-[#bfc9d1] active:from-[#7a7e83] active:to-[#bfc9d1] transition-all duration-200 min-w-[200px]"
+            style={{ boxShadow: '0 4px 16px 0 #bfc9d1, 0 1.5px 0 #fff inset' }}
             onClick={() => setShowUserLogin(true)}
           >
             {lang === 'zh' ? '已登录名簿查看/修改' : '登録済み名簿の確認・修正'}
@@ -170,7 +187,8 @@ export default function NamebookPage() {
 
           {/* 管理员登录按钮 */}
           <button
-            className="px-8 py-4 rounded-full text-lg font-semibold bg-gradient-to-b from-[#3b82f6] to-[#2563eb] text-white shadow-md hover:from-[#60a5fa] hover:to-[#3b82f6] hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0.5 transition-all duration-200 min-w-[200px]"
+            className="px-8 py-4 rounded-full text-lg font-bold bg-gradient-to-b from-[#bfc9d1] via-[#e6e8ea] to-[#7a7e83] text-black border border-[#bfc9d1] shadow-md hover:from-[#e6e8ea] hover:to-[#bfc9d1] active:from-[#7a7e83] active:to-[#bfc9d1] transition-all duration-200 min-w-[200px]"
+            style={{ boxShadow: '0 4px 16px 0 #bfc9d1, 0 1.5px 0 #fff inset' }}
             onClick={() => setShowLogin(true)}
           >
             {texts[lang].login}
@@ -277,7 +295,8 @@ export default function NamebookPage() {
               <div><strong>{lang === 'zh' ? '电话' : '電話番号'}:</strong> {userInfo.phone}</div>
             </div>
             <button
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 self-end"
+              className="mt-4 px-4 py-2 bg-gradient-to-b from-[#bfc9d1] via-[#e6e8ea] to-[#7a7e83] text-black font-bold border border-[#bfc9d1] rounded shadow-md hover:from-[#e6e8ea] hover:to-[#bfc9d1] active:from-[#7a7e83] active:to-[#bfc9d1] self-end"
+              style={{ boxShadow: '0 4px 16px 0 #bfc9d1, 0 1.5px 0 #fff inset' }}
               onClick={() => {
                 localStorage.setItem('editUserAccount', (userInfo.firstNameRomaji + userInfo.lastNameRomaji).toLowerCase());
                 window.location.href = '/register?edit=1';

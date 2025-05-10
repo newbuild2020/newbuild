@@ -21,11 +21,13 @@ export default function AdminAccounts() {
   const [lockStatus, setLockStatus] = useState<{[account: string]: boolean}>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<AccountInfo | null>(null);
+  const [rawList, setRawList] = useState<any[]>([]);
   const router = useRouter();
 
   // 加载账号和锁定状态
   useEffect(() => {
     const list = JSON.parse(localStorage.getItem("registerList") || "[]");
+    setRawList(list);
     const result = list.map((item: any) => {
       const account = (item.firstNameRomaji + item.lastNameRomaji).replace(/\s/g, '').toUpperCase();
       const password = localStorage.getItem('userPassword_' + account) || '';
@@ -46,6 +48,11 @@ export default function AdminAccounts() {
     });
     setLockStatus(lockObj);
   }, []);
+
+  // 新增：根据账号查找原始资料
+  const getRawByAccount = (account: string) => {
+    return rawList.find(item => (item.firstNameRomaji + item.lastNameRomaji).replace(/\s/g, '').toUpperCase() === account);
+  };
 
   // 详情弹窗
   const handleShowDetail = (a: AccountInfo) => {
@@ -165,24 +172,69 @@ export default function AdminAccounts() {
       {/* 详情弹窗 */}
       {showDetail && selected && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-neutral-800 rounded-lg p-6 w-full max-w-md shadow-lg">
+          <div className="bg-white dark:bg-neutral-800 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-lg">
             <h3 className="text-lg font-bold mb-4">账号详情</h3>
-            <div className="mb-2">账号：{selected.account}</div>
-            <div className="mb-2">姓名：{selected.name}</div>
-            <div className="mb-2">出生年月日：{selected.birth}</div>
-            <div className="mb-2">国籍：{selected.nationality}</div>
-            <div className="mb-2">电话：{selected.phone}</div>
-            <div className="mb-2">当前密码：{selected.password}</div>
-            <div className="mb-2">账号状态：{lockStatus[selected.account] ? '已锁定' : '正常'}</div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                className="px-3 py-1 rounded font-medium transition-all transform hover:-translate-y-0.5 active:translate-y-0.5 bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-lg hover:shadow-xl border border-blue-600 hover:border-blue-500"
-                onClick={() => handleShowReset(selected)}
-              >重置密码</button>
-              <button
-                className="px-3 py-1 rounded font-medium transition-all transform hover:-translate-y-0.5 active:translate-y-0.5 bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-lg hover:shadow-xl border border-blue-600 hover:border-blue-500"
-                onClick={() => handleToggleLock(selected)}
-              >{lockStatus[selected.account] ? '解锁账号' : '锁定账号'}</button>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div className="mb-2">账号：{selected.account}</div>
+                <div className="mb-2">姓名：{selected.name}</div>
+                <div className="mb-2">出生年月日：{selected.birth}</div>
+                <div className="mb-2">国籍：{selected.nationality}</div>
+                <div className="mb-2">电话：{selected.phone}</div>
+                <div className="mb-2">当前密码：{selected.password}</div>
+                <div className="mb-2">账号状态：{lockStatus[selected.account] ? '已锁定' : '正常'}</div>
+              </div>
+              {/* 新增：展示所有原始资料字段和照片 */}
+              <div className="border-l pl-4">
+                {(() => {
+                  const raw = getRawByAccount(selected.account);
+                  if (!raw) return null;
+                  return (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(raw).map(([key, value]) => {
+                          if (key === 'photos' && Array.isArray(value)) {
+                            return (
+                              <div key={key} className="col-span-2">
+                                <span className="font-medium block mb-2">上传照片：</span>
+                                <div className="flex flex-wrap gap-2">
+                                  {value.map((img: string, idx: number) => (
+                                    <img 
+                                      key={idx} 
+                                      src={img} 
+                                      alt={`Photo ${idx + 1}`} 
+                                      className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          } else if (typeof value === 'string' && value.startsWith('data:image/')) {
+                            return (
+                              <div key={key} className="col-span-2">
+                                <span className="font-medium block mb-2">{key}：</span>
+                                <img 
+                                  src={value} 
+                                  alt={key} 
+                                  className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                                />
+                              </div>
+                            );
+                          } else if (typeof value === 'string' && value.length > 0) {
+                            return (
+                              <div key={key}>
+                                <span className="font-medium">{key}：</span>
+                                <span className="ml-1">{value}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button

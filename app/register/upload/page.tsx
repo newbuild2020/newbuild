@@ -126,14 +126,37 @@ export default function RegisterUpload() {
           </button>
           <button
             className="px-4 py-2 rounded shadow-md font-bold text-white bg-gradient-to-b from-[#bfc9d1] via-[#e6e8ea] to-[#7a7e83] border border-[#bfc9d1] hover:from-[#e6e8ea] hover:to-[#bfc9d1] active:from-[#7a7e83] active:to-[#bfc9d1] transition-all"
-            onClick={e => {
+            onClick={async e => {
               e.preventDefault();
               // 校验必传项
               if (!uploadFiles.rouzai || (form.nationality !== '日本' && (!uploadFiles.zairyuFront || !uploadFiles.zairyuBack))) {
                 alert(lang === 'zh' ? '请上传所有必传证件照片' : '必須書類の写真をすべてアップロードしてください');
                 return;
               }
-              // 可在此处保存上传信息到 localStorage 或后端
+              // 1. 将所有图片转为Base64
+              function fileToBase64(file: File): Promise<string> {
+                return new Promise(resolve => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result as string);
+                  reader.readAsDataURL(file);
+                });
+              }
+              const photoData: Record<string, string> = {};
+              if (uploadFiles.rouzai) photoData.rouzaiPhoto = await fileToBase64(uploadFiles.rouzai);
+              if (uploadFiles.zairyuFront) photoData.zairyuFrontPhoto = await fileToBase64(uploadFiles.zairyuFront);
+              if (uploadFiles.zairyuBack) photoData.zairyuBackPhoto = await fileToBase64(uploadFiles.zairyuBack);
+              for (const type of extraTypes) {
+                if (extraFiles[type]) {
+                  photoData[`${type}Photo`] = await fileToBase64(extraFiles[type] as File);
+                }
+              }
+              // 2. 合并到registerList最后一条
+              const list = JSON.parse(localStorage.getItem('registerList') || '[]');
+              if (list.length > 0) {
+                list[list.length - 1] = { ...list[list.length - 1], ...photoData };
+                localStorage.setItem('registerList', JSON.stringify(list));
+              }
+              // 3. 跳转
               router.push("/register/complete");
             }}
           >

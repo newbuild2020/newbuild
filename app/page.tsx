@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import type { useState as UseStateType } from 'react';
@@ -153,8 +153,15 @@ export default function Home() {
     }
   }
 
+  useEffect(() => {
+    const savedLang = localStorage.getItem("lang");
+    if (savedLang === "zh" || savedLang === "ja") {
+      setLang(savedLang);
+    }
+  }, []);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f5f5f7] dark:bg-black text-[#1d1d1f] dark:text-white relative">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-black text-black dark:text-white relative">
       {/* 左上角管理入口图标按钮（黑色圆形底，白色图标，极简风格，带动态效果） */}
       <button
         className="fixed top-4 left-4 z-50 w-12 h-12 flex items-center justify-center rounded-full bg-black text-white shadow hover:shadow-lg hover:-translate-y-1 hover:scale-110 active:translate-y-1 transition-all duration-200 group"
@@ -196,15 +203,15 @@ export default function Home() {
       {showAdminLogin && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-neutral-800 rounded-lg p-6 w-80 max-w-[90vw] shadow-lg flex flex-col gap-4">
-            <h3 className="text-lg font-semibold mb-2 text-center">管理入口登录</h3>
+            <h3 className="text-lg font-semibold mb-2 text-center text-black dark:text-white">管理入口登录</h3>
             <input
-              className="border rounded px-3 py-2 mb-2 bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100"
+              className="border rounded px-3 py-2 mb-2 bg-gray-100 dark:bg-neutral-700 text-black dark:text-neutral-100"
               placeholder="账号"
               value={adminUser}
               onChange={e => setAdminUser(e.target.value)}
             />
             <input
-              className="border rounded px-3 py-2 mb-2 bg-neutral-100 dark:bg-neutral-700 text-neutral-900 dark:text-neutral-100"
+              className="border rounded px-3 py-2 mb-2 bg-gray-100 dark:bg-neutral-700 text-black dark:text-neutral-100"
               placeholder="密码"
               type="password"
               value={adminPass}
@@ -213,13 +220,13 @@ export default function Home() {
             {adminError && <div className="text-red-500 text-sm mb-2">{adminError}</div>}
             <div className="flex gap-2">
               <button
-                className="flex-1 bg-[#2563eb] text-white py-2 rounded hover:bg-[#3b82f6]"
+                className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
                 onClick={handleAdminLogin}
               >
                 登录
               </button>
               <button
-                className="flex-1 border py-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                className="flex-1 border py-2 rounded hover:bg-gray-200 dark:hover:bg-neutral-700 text-black dark:text-white"
                 onClick={() => { setShowAdminLogin(false); setAdminError(""); }}
               >
                 取消
@@ -232,36 +239,43 @@ export default function Home() {
       {/* 语言切换 */}
       <div className="absolute top-4 right-4 flex gap-2">
         <button
-          className={`px-3 py-1.5 rounded-full text-sm border border-[#d2d2d7] hover:bg-[#f5f5f7] dark:border-[#424245] dark:hover:bg-[#1d1d1f] transition-colors ${
-            lang === "zh" ? "bg-[#f5f5f7] dark:bg-[#1d1d1f]" : ""
+          className={`px-3 py-1.5 rounded-full text-sm border border-gray-300 hover:bg-gray-100 dark:border-[#424245] dark:hover:bg-[#1d1d1f] transition-colors ${
+            lang === "zh" ? "bg-gray-100 dark:bg-[#1d1d1f]" : ""
           }`}
-          onClick={() => setLang("zh")}
+          onClick={() => {
+            setLang("zh");
+            localStorage.setItem("lang", "zh");
+          }}
         >
           中文
         </button>
         <button
-          className={`px-3 py-1.5 rounded-full text-sm border border-[#d2d2d7] hover:bg-[#f5f5f7] dark:border-[#424245] dark:hover:bg-[#1d1d1f] transition-colors ${
-            lang === "ja" ? "bg-[#f5f5f7] dark:bg-[#1d1d1f]" : ""
+          className={`px-3 py-1.5 rounded-full text-sm border border-gray-300 hover:bg-gray-100 dark:border-[#424245] dark:hover:bg-[#1d1d1f] transition-colors ${
+            lang === "ja" ? "bg-gray-100 dark:bg-[#1d1d1f]" : ""
           }`}
-          onClick={() => setLang("ja")}
+          onClick={() => {
+            setLang("ja");
+            localStorage.setItem("lang", "ja");
+          }}
         >
           日本語
         </button>
       </div>
       {/* 公司名和网站名 */}
       <div className="flex flex-col items-center gap-2 mb-16">
-        <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight mb-2">{COMPANY_NAME}</h1>
+        <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight mb-2 text-black dark:text-white">{COMPANY_NAME}</h1>
       </div>
       {/* 导航按钮网格 */}
       <div className="grid grid-cols-2 gap-4 w-full max-w-2xl px-4">
         {navButtons.map((button) => (
           <button
             key={button.id}
-            className={`px-6 py-4 rounded-2xl text-lg font-medium transition-all ${
+            className={`px-6 py-4 rounded-2xl text-lg font-bold transition-all shadow-md ${
               button.disabled
-                ? "bg-[#d2d2d7] text-[#86868b] cursor-not-allowed dark:bg-[#1d1d1f] dark:text-[#424245]"
-                : "bg-[#0066cc] text-white hover:bg-[#0077ed] dark:bg-[#0a84ff] dark:hover:bg-[#409cff]"
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed dark:bg-[#1d1d1f] dark:text-[#424245]"
+                : "bg-gradient-to-b from-[#bfc9d1] via-[#e6e8ea] to-[#7a7e83] text-black border border-[#bfc9d1] hover:from-[#e6e8ea] hover:to-[#bfc9d1] active:from-[#7a7e83] active:to-[#bfc9d1]"
             }`}
+            style={!button.disabled ? { boxShadow: '0 4px 16px 0 #bfc9d1, 0 1.5px 0 #fff inset' } : {}}
             onClick={() => !button.disabled && router.push(button.path)}
             disabled={button.disabled}
           >
@@ -271,7 +285,7 @@ export default function Home() {
       </div>
       {/* 版权信息 */}
       <footer className="w-full mt-20 mb-4 flex justify-center">
-        <span className="text-sm text-[#86868b]">© 2024 株式会社ニュービルド All Rights Reserved.</span>
+        <span className="text-sm text-gray-500">© 2024 株式会社ニュービルド All Rights Reserved.</span>
       </footer>
     </div>
   );
